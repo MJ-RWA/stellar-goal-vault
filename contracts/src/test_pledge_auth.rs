@@ -1015,6 +1015,71 @@ fn update_metadata_at_last_moment_before_deadline_enforces_creator_auth_and_emit
     assert_eq!(balance(&f, &f.creator), 0);
 }
 
+
+#[test]
+fn contributor_cannot_update_metadata_at_last_moment_before_deadline() {
+    let f = fixture();
+    let original = String::from_str(&f.env, "auth");
+    let tampered = String::from_str(&f.env, "contributor metadata takeover");
+
+    // Alice is a real contributor, but contribution does not grant metadata authority.
+    f.client
+        .contribute(&f.campaign_id, &f.alice, &f.token, &PLEDGE);
+
+    let deadline = f.client.get_campaign(&f.campaign_id).deadline;
+    f.env.ledger().set_timestamp(deadline - 1);
+
+    let events_before = f
+        .env
+        .events()
+        .all()
+        .filter_by_contract(&f.client.address)
+        .events()
+        .len();
+
+    f.env.mock_auths(&[MockAuth {
+        address: &f.alice,
+        invoke: &MockAuthInvoke {
+            contract: &f.client.address,
+            fn_name: "update_metadata",
+            args: (f.campaign_id, f.alice.clone(), tampered.clone()).into_val(&f.env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    assert!(
+        f.client
+            .try_update_metadata(&f.campaign_id, &f.alice, &tampered)
+            .is_err(),
+        "a contributor must not update metadata at deadline - 1"
+    );
+
+    let campaign = f.client.get_campaign(&f.campaign_id);
+    assert_eq!(campaign.metadata, original);
+    assert_eq!(campaign.pledged_amount, PLEDGE);
+    assert_eq!(campaign.contributor_count, 1);
+    assert_eq!(
+        f.client
+            .get_contribution(&f.campaign_id, &f.alice, &f.token),
+        PLEDGE
+    );
+    assert_eq!(balance(&f, &f.alice), 10_000 - PLEDGE);
+    assert_eq!(balance(&f, &f.client.address), PLEDGE);
+    assert_eq!(balance(&f, &f.creator), 0);
+
+    let events_after = f
+        .env
+        .events()
+        .all()
+        .filter_by_contract(&f.client.address)
+        .events()
+        .len();
+    assert_eq!(
+        events_after, events_before,
+        "rejected contributor update must not emit an event"
+    );
+}
+
 // ── SGV-2026-118: per-contributor cap authority enforcement ──────────────────
 // Scope:
 // - Verify creator, contributor, or admin authority relevant to two contributions
