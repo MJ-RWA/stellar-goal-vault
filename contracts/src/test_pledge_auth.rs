@@ -1037,22 +1037,26 @@ fn contributor_cannot_update_metadata_at_last_moment_before_deadline() {
         .events()
         .len();
 
-    f.env.mock_auths(&[MockAuth {
-        address: &f.alice,
-        invoke: &MockAuthInvoke {
-            contract: &f.client.address,
-            fn_name: "update_metadata",
-            args: (f.campaign_id, f.alice.clone(), tampered.clone()).into_val(&f.env),
-            sub_invokes: &[],
-        },
-    }]);
+    // Neither an existing contributor nor the contract admin may impersonate
+    // the creator, even in the final second before the deadline.
+    for unauthorized in [&f.alice, &f.admin] {
+        f.env.mock_auths(&[MockAuth {
+            address: unauthorized,
+            invoke: &MockAuthInvoke {
+                contract: &f.client.address,
+                fn_name: "update_metadata",
+                args: (f.campaign_id, f.creator.clone(), tampered.clone()).into_val(&f.env),
+                sub_invokes: &[],
+            },
+        }]);
 
-    assert!(
-        f.client
-            .try_update_metadata(&f.campaign_id, &f.alice, &tampered)
-            .is_err(),
-        "a contributor must not update metadata at deadline - 1"
-    );
+        assert!(
+            f.client
+                .try_update_metadata(&f.campaign_id, &f.creator, &tampered)
+                .is_err(),
+            "a contributor or admin must not update metadata at deadline - 1"
+        );
+    }
 
     let campaign = f.client.get_campaign(&f.campaign_id);
     assert_eq!(campaign.metadata, original);
