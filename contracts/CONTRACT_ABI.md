@@ -321,7 +321,9 @@ twice. Covered by
 `test_rejected_metadata_update_commits_nothing_and_emits_no_event` in
 `src/test.rs`, and
 `update_metadata_at_last_moment_before_deadline_enforces_creator_auth_and_emits_event` and
-`contributor_cannot_update_metadata_at_last_moment_before_deadline`
+`contributor_cannot_update_metadata_at_last_moment_before_deadline` (which also verifies
+that a contributor and the contract admin cannot impersonate the creator at
+`deadline - 1`).
 in `src/test_pledge_auth.rs`.
 
 **Gas estimate:** 16,000 + storage write + event ≈ 22,000 units + 20% headroom = **26,400**
